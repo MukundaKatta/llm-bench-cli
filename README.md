@@ -1,100 +1,92 @@
 # llm-bench-cli
 
-A fast, lightweight CLI tool for benchmarking local LLMs. Compare inference speed, throughput, and quality across models running on your own hardware.
+`llm-bench-cli` is an early-stage project for benchmarking local LLMs and OpenAI-compatible inference endpoints, with a focus on throughput, latency, and side-by-side model comparison on your own hardware.
 
-## Why llm-bench-cli?
+As local inference gets more practical, the hard part is often not running a model but choosing between several of them. Different models, runtimes, and quantizations can behave very differently on the same machine. `llm-bench-cli` is aimed at making those tradeoffs easier to measure.
 
-2026 is the year of efficient AI. With dozens of local LLM options (Ollama, llama.cpp, vLLM, etc.), choosing the right model for your hardware is harder than ever. This tool makes it easy to run standardized benchmarks and compare results side-by-side.
+## Why llm-bench-cli
 
-## Features
+The long-term goal is to provide a lightweight benchmarking workflow for developers who care about:
 
-- Benchmark any local LLM accessible via an OpenAI-compatible API
-- Measure tokens/second, time-to-first-token, and total latency
-- Built-in test prompts for coding, reasoning, creative writing, and summarization
-- Side-by-side comparison tables in your terminal
-- Export results to JSON or CSV
-- Supports concurrent request testing for throughput measurement
-- Works with Ollama, LM Studio, vLLM, llama.cpp server, and any OpenAI-compatible endpoint
+- tokens per second
+- time to first token
+- end-to-end latency
+- throughput under concurrency
+- practical comparison across local-model runtimes
+
+## Current Status
+
+`llm-bench-cli` is currently in an early public stage.
+
+The repository already captures the project intent and basic dependency direction, but it does not yet contain the full CLI implementation described by the original concept. This README has been updated to reflect the current state honestly while keeping the intended direction clear.
+
+## Project Direction
+
+The project is intended to grow toward:
+
+- a simple CLI for repeatable local-model benchmarks
+- comparisons across models served via OpenAI-compatible APIs
+- benchmark suites for coding, reasoning, summarization, and instruction-following tasks
+- exportable benchmark results for tracking performance over time
+- lightweight reporting that works well in terminals and scripts
+
+## Planned Workflow
+
+The intended user flow is straightforward:
+
+1. Point the tool at a local or self-hosted inference endpoint.
+2. Run a benchmark suite against one or more models.
+3. Compare latency and throughput across runs.
+4. Export results for later analysis.
+
+## Why This Matters
+
+For many builders, model choice is now a hardware and latency question as much as a quality question. A small benchmarking tool can help make those decisions more empirical, especially when comparing Ollama, llama.cpp servers, LM Studio, vLLM, and other OpenAI-compatible endpoints.
 
 ## Installation
 
-```bash
-pip install llm-bench-cli
-```
-
-Or install from source:
+At the moment, the repository is still taking shape. For now, clone the repo to follow progress or contribute as the implementation develops:
 
 ```bash
 git clone https://github.com/MukundaKatta/llm-bench-cli.git
 cd llm-bench-cli
-pip install -e .
 ```
 
-## Quick Start
+## Current Repository Contents
 
-```bash
-# Benchmark a single model (assumes Ollama running on default port)
-llm-bench run --model llama3.2 --endpoint http://localhost:11434/v1
-
-# Compare two models
-llm-bench compare --models llama3.2,mistral-7b --endpoint http://localhost:11434/v1
-
-# Run with specific test categories
-llm-bench run --model llama3.2 --categories coding,reasoning
-
-# Export results to JSON
-llm-bench run --model llama3.2 --output results.json
-
-# Throughput test with concurrent requests
-llm-bench throughput --model llama3.2 --concurrency 4 --requests 20
+```text
+llm-bench-cli/
+├── README.md
+├── requirements.txt
+└── LICENSE
 ```
 
-## Python API
+Current dependencies suggest the planned implementation direction:
 
-```python
-from llm_bench import BenchmarkConfig, BenchmarkRunner
+- `httpx` for calling benchmark targets
+- `rich` for terminal output
+- `click` for the CLI interface
 
-config = BenchmarkConfig(
-    endpoint="http://localhost:11434/v1",
-    model="llama3.2",
-    categories=["coding", "reasoning"],
-    num_runs=3,
-)
+## Roadmap
 
-runner = BenchmarkRunner(config)
-results = runner.run()
+Near-term priorities include:
 
-results.print_summary()
-results.to_json("results.json")
-```
-
-## Test Categories
-
-- **coding** - Code generation and debugging tasks
-- **reasoning** - Logic puzzles and math problems
-- **creative** - Creative writing prompts
-- **summarization** - Text summarization tasks
-- **instruction** - Instruction following accuracy
-
-## Output Example
-
-```
-Model: llama3.2 (3B) @ http://localhost:11434/v1
-Runs: 3 | Categories: coding, reasoning
----------------------------------------------------
-Metric                    Mean       P50        P95
----------------------------------------------------
-Time to First Token (ms)  145.2     142.0      168.3
-Tokens/Second             42.8      43.1       41.2
-Total Latency (ms)        2341.5    2298.0     2520.1
-Output Tokens             98.3      96.0       112.0
----------------------------------------------------
-```
+- implementing the first runnable CLI commands
+- defining benchmark task categories
+- adding result formatting and export support
+- documenting supported endpoint types
+- creating reproducible example benchmark runs
 
 ## Contributing
 
-Contributions are welcome! Fork the repo, create a feature branch, and open a PR.
+Contributions, ideas, and feedback are welcome, especially around:
+
+- benchmark design
+- local-model comparison workflows
+- CLI ergonomics
+- reporting formats
+- evaluation categories that are practical for developers
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
