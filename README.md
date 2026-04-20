@@ -45,11 +45,61 @@ For many builders, model choice is now a hardware and latency question as much a
 
 ## Installation
 
-At the moment, the repository is still taking shape. For now, clone the repo to follow progress or contribute as the implementation develops:
+Install from source:
 
 ```bash
 git clone https://github.com/MukundaKatta/llm-bench-cli.git
 cd llm-bench-cli
+pip install -e .
+```
+
+## First Working Benchmark
+
+The first runnable slice benchmarks an OpenAI-compatible `/v1/chat/completions` endpoint.
+
+Required environment variables:
+
+```bash
+export OPENAI_BASE_URL=http://localhost:8000/v1
+export OPENAI_API_KEY=test-key
+```
+
+Run a benchmark:
+
+```bash
+llm-bench bench \
+  --model your-model-name \
+  --prompt "Explain what makes a fast benchmark useful."
+```
+
+Optional flags:
+
+- `--stream` to measure time to first token when the endpoint supports streaming
+- `--json-output` to print the normalized result schema for scripts and later comparisons
+- `--timeout` to raise or lower the request timeout
+
+Example JSON result:
+
+```json
+{
+  "provider": "openai-compatible",
+  "model": "your-model-name",
+  "base_url": "http://localhost:8000/v1",
+  "prompt": "Explain what makes a fast benchmark useful.",
+  "status_code": 200,
+  "success": true,
+  "latency_ms": 123.4,
+  "total_duration_ms": 245.7,
+  "ttft_ms": 123.4,
+  "output_text": "A useful benchmark...",
+  "output_tokens": 42,
+  "prompt_tokens": 18,
+  "total_tokens": 60,
+  "error": null,
+  "raw_metrics": {
+    "stream": true
+  }
+}
 ```
 
 ## Current Repository Contents
@@ -61,21 +111,38 @@ llm-bench-cli/
 └── LICENSE
 ```
 
-Current dependencies suggest the planned implementation direction:
+Current dependencies power the first implementation directly:
 
 - `httpx` for calling benchmark targets
 - `rich` for terminal output
 - `click` for the CLI interface
+- a normalized provider adapter contract in `src/llm_bench_cli/adapters.py`
+- a shared benchmark result schema in `src/llm_bench_cli/models.py`
+
+## Current Repository Contents
+
+```text
+llm-bench-cli/
+├── README.md
+├── pyproject.toml
+├── src/llm_bench_cli/
+│   ├── adapters.py
+│   ├── cli.py
+│   ├── models.py
+│   └── __init__.py
+└── tests/
+    └── test_cli.py
+```
 
 ## Roadmap
 
-Near-term priorities include:
+Near-term priorities now include:
 
-- implementing the first runnable CLI commands
-- defining benchmark task categories
-- adding result formatting and export support
-- documenting supported endpoint types
-- creating reproducible example benchmark runs
+- adding more benchmark suites and prompts
+- exporting run results to files
+- supporting more provider adapters behind the same schema
+- adding concurrency and throughput runs
+- expanding reporting beyond a single benchmark invocation
 
 ## Contributing
 
