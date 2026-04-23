@@ -107,23 +107,6 @@ Example JSON result:
 ```text
 llm-bench-cli/
 ├── README.md
-├── requirements.txt
-└── LICENSE
-```
-
-Current dependencies power the first implementation directly:
-
-- `httpx` for calling benchmark targets
-- `rich` for terminal output
-- `click` for the CLI interface
-- a normalized provider adapter contract in `src/llm_bench_cli/adapters.py`
-- a shared benchmark result schema in `src/llm_bench_cli/models.py`
-
-## Current Repository Contents
-
-```text
-llm-bench-cli/
-├── README.md
 ├── pyproject.toml
 ├── src/llm_bench_cli/
 │   ├── adapters.py
