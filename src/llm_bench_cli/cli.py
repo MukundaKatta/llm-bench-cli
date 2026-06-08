@@ -21,8 +21,15 @@ def main() -> None:
 
 
 @main.command("bench")
-@click.option("--base-url", envvar="OPENAI_BASE_URL", required=True, help="Base URL ending in /v1.")
-@click.option("--api-key", envvar="OPENAI_API_KEY", default="test-key", show_default=True)
+@click.option(
+    "--base-url",
+    envvar="OPENAI_BASE_URL",
+    required=True,
+    help="Base URL ending in /v1.",
+)
+@click.option(
+    "--api-key", envvar="OPENAI_API_KEY", default="test-key", show_default=True
+)
 @click.option("--model", required=True, help="Model name to benchmark.")
 @click.option("--prompt", required=True, help="Prompt to send.")
 @click.option("--max-tokens", default=128, show_default=True, type=int)
@@ -67,10 +74,21 @@ def bench(
     table.add_row("HTTP status", str(result.status_code))
     table.add_row("Latency (ms)", f"{result.latency_ms:.2f}")
     table.add_row("Total duration (ms)", f"{result.total_duration_ms:.2f}")
-    table.add_row("TTFT (ms)", f"{result.ttft_ms:.2f}" if result.ttft_ms is not None else "n/a")
-    table.add_row("Prompt tokens", str(result.prompt_tokens) if result.prompt_tokens is not None else "n/a")
-    table.add_row("Output tokens", str(result.output_tokens) if result.output_tokens is not None else "n/a")
-    table.add_row("Total tokens", str(result.total_tokens) if result.total_tokens is not None else "n/a")
+    table.add_row(
+        "TTFT (ms)", f"{result.ttft_ms:.2f}" if result.ttft_ms is not None else "n/a"
+    )
+    table.add_row(
+        "Prompt tokens",
+        str(result.prompt_tokens) if result.prompt_tokens is not None else "n/a",
+    )
+    table.add_row(
+        "Output tokens",
+        str(result.output_tokens) if result.output_tokens is not None else "n/a",
+    )
+    table.add_row(
+        "Total tokens",
+        str(result.total_tokens) if result.total_tokens is not None else "n/a",
+    )
     if result.error:
         table.add_row("Error", result.error)
     console.print(table)

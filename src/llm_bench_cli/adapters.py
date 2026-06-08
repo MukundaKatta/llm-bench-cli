@@ -69,39 +69,65 @@ class OpenAICompatibleAdapter(ProviderAdapter):
                 timeout=timeout,
             )
 
-        response = client.post(url, json=payload, timeout=timeout)
+        try:
+            response = client.post(url, json=payload, timeout=timeout)
+        except httpx.RequestError as exc:
+            duration_ms = (time.perf_counter() - started) * 1000
+            return self._request_error_result(
+                base_url=base_url,
+                model=model,
+                prompt=prompt,
+                duration_ms=duration_ms,
+                error=f"{type(exc).__name__}: {exc}",
+                stream=False,
+            )
         duration_ms = (time.perf_counter() - started) * 1000
-        data = response.json()
 
-        if response.is_success:
-            usage = data.get("usage", {})
-            content = self._extract_output_text(data)
+        if not response.is_success:
             return BenchmarkResult(
                 provider=self.provider_name,
                 model=model,
                 base_url=base_url,
                 prompt=prompt,
                 status_code=response.status_code,
-                success=True,
+                success=False,
                 latency_ms=duration_ms,
                 total_duration_ms=duration_ms,
-                output_text=content,
-                prompt_tokens=usage.get("prompt_tokens"),
-                output_tokens=usage.get("completion_tokens"),
-                total_tokens=usage.get("total_tokens"),
+                error=response.text,
                 raw_metrics={"stream": False},
             )
 
+        try:
+            data = response.json()
+        except json.JSONDecodeError as exc:
+            return BenchmarkResult(
+                provider=self.provider_name,
+                model=model,
+                base_url=base_url,
+                prompt=prompt,
+                status_code=response.status_code,
+                success=False,
+                latency_ms=duration_ms,
+                total_duration_ms=duration_ms,
+                error=f"Invalid JSON in response body: {exc}",
+                raw_metrics={"stream": False},
+            )
+
+        usage = data.get("usage") or {}
+        content = self._extract_output_text(data)
         return BenchmarkResult(
             provider=self.provider_name,
             model=model,
             base_url=base_url,
             prompt=prompt,
             status_code=response.status_code,
-            success=False,
+            success=True,
             latency_ms=duration_ms,
             total_duration_ms=duration_ms,
-            error=response.text,
+            output_text=content,
+            prompt_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
             raw_metrics={"stream": False},
         )
 
@@ -121,46 +147,73 @@ class OpenAICompatibleAdapter(ProviderAdapter):
         content_parts: list[str] = []
         usage: dict[str, Any] = {}
 
-        with client.stream("POST", url, json=payload, timeout=timeout) as response:
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                if line.startswith("data: "):
-                    chunk = line[6:]
-                    if chunk == "[DONE]":
-                        continue
-                    data = json.loads(chunk)
-                    if first_token_ms is None:
-                        first_token_ms = (time.perf_counter() - started) * 1000
-                    delta = (
-                        data.get("choices", [{}])[0]
-                        .get("delta", {})
-                        .get("content", "")
-                    )
-                    if delta:
-                        content_parts.append(delta)
-                    if "usage" in data:
-                        usage = data["usage"]
-
+        try:
+            stream_ctx = client.stream("POST", url, json=payload, timeout=timeout)
+        except httpx.RequestError as exc:
             duration_ms = (time.perf_counter() - started) * 1000
+            return self._request_error_result(
+                base_url=base_url,
+                model=model,
+                prompt=prompt,
+                duration_ms=duration_ms,
+                error=f"{type(exc).__name__}: {exc}",
+                stream=True,
+            )
 
-            if response.is_success:
+        with stream_ctx as response:
+            if not response.is_success:
+                error_body = response.read().decode("utf-8", errors="ignore")
+                duration_ms = (time.perf_counter() - started) * 1000
                 return BenchmarkResult(
                     provider=self.provider_name,
                     model=model,
                     base_url=base_url,
                     prompt=prompt,
                     status_code=response.status_code,
-                    success=True,
+                    success=False,
+                    latency_ms=duration_ms,
+                    total_duration_ms=duration_ms,
+                    error=error_body,
+                    raw_metrics={"stream": True},
+                )
+
+            try:
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        chunk = line[6:].strip()
+                        if not chunk or chunk == "[DONE]":
+                            continue
+                        if first_token_ms is None:
+                            first_token_ms = (time.perf_counter() - started) * 1000
+                        try:
+                            data = json.loads(chunk)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = data.get("choices") or [{}]
+                        delta = (choices[0].get("delta") or {}).get("content", "")
+                        if delta:
+                            content_parts.append(delta)
+                        if data.get("usage"):
+                            usage = data["usage"]
+            except httpx.RequestError as exc:
+                duration_ms = (time.perf_counter() - started) * 1000
+                return BenchmarkResult(
+                    provider=self.provider_name,
+                    model=model,
+                    base_url=base_url,
+                    prompt=prompt,
+                    status_code=response.status_code,
+                    success=False,
                     latency_ms=first_token_ms or duration_ms,
                     total_duration_ms=duration_ms,
                     ttft_ms=first_token_ms,
-                    output_text="".join(content_parts),
-                    prompt_tokens=usage.get("prompt_tokens"),
-                    output_tokens=usage.get("completion_tokens"),
-                    total_tokens=usage.get("total_tokens"),
+                    error=f"{type(exc).__name__}: {exc}",
                     raw_metrics={"stream": True},
                 )
+
+            duration_ms = (time.perf_counter() - started) * 1000
 
             return BenchmarkResult(
                 provider=self.provider_name,
@@ -168,13 +221,40 @@ class OpenAICompatibleAdapter(ProviderAdapter):
                 base_url=base_url,
                 prompt=prompt,
                 status_code=response.status_code,
-                success=False,
+                success=True,
                 latency_ms=first_token_ms or duration_ms,
                 total_duration_ms=duration_ms,
                 ttft_ms=first_token_ms,
-                error=response.read().decode("utf-8", errors="ignore"),
+                output_text="".join(content_parts),
+                prompt_tokens=usage.get("prompt_tokens"),
+                output_tokens=usage.get("completion_tokens"),
+                total_tokens=usage.get("total_tokens"),
                 raw_metrics={"stream": True},
             )
+
+    def _request_error_result(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        prompt: str,
+        duration_ms: float,
+        error: str,
+        stream: bool,
+    ) -> BenchmarkResult:
+        """Build a failed result for a transport-level error (no HTTP response)."""
+        return BenchmarkResult(
+            provider=self.provider_name,
+            model=model,
+            base_url=base_url,
+            prompt=prompt,
+            status_code=0,
+            success=False,
+            latency_ms=duration_ms,
+            total_duration_ms=duration_ms,
+            error=error,
+            raw_metrics={"stream": stream},
+        )
 
     @staticmethod
     def _extract_output_text(data: dict[str, Any]) -> str:

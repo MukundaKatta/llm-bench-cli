@@ -73,6 +73,132 @@ def test_openai_adapter_streaming_records_ttft():
     assert result.output_text == "hello world"
 
 
+def test_openai_adapter_error_status_non_json_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            502, text="Bad Gateway", headers={"content-type": "text/plain"}
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    adapter = OpenAICompatibleAdapter()
+
+    result = adapter.benchmark(
+        client=client,
+        base_url="http://localhost:8000/v1",
+        model="test-model",
+        prompt="hello",
+        max_tokens=32,
+        stream=False,
+        timeout=10.0,
+    )
+
+    assert result.success is False
+    assert result.status_code == 502
+    assert "Bad Gateway" in result.error
+
+
+def test_openai_adapter_success_invalid_json_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, text="not json", headers={"content-type": "text/plain"}
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    adapter = OpenAICompatibleAdapter()
+
+    result = adapter.benchmark(
+        client=client,
+        base_url="http://localhost:8000/v1",
+        model="test-model",
+        prompt="hello",
+        max_tokens=32,
+        stream=False,
+        timeout=10.0,
+    )
+
+    assert result.success is False
+    assert result.status_code == 200
+    assert "Invalid JSON" in result.error
+
+
+def test_openai_adapter_request_error_does_not_raise():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    adapter = OpenAICompatibleAdapter()
+
+    result = adapter.benchmark(
+        client=client,
+        base_url="http://localhost:8000/v1",
+        model="test-model",
+        prompt="hello",
+        max_tokens=32,
+        stream=False,
+        timeout=10.0,
+    )
+
+    assert result.success is False
+    assert result.status_code == 0
+    assert "ConnectError" in result.error
+
+
+def test_openai_adapter_streaming_error_status():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            500, text="upstream model crashed", headers={"content-type": "text/plain"}
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    adapter = OpenAICompatibleAdapter()
+
+    result = adapter.benchmark(
+        client=client,
+        base_url="http://localhost:8000/v1",
+        model="test-model",
+        prompt="hello",
+        max_tokens=32,
+        stream=True,
+        timeout=10.0,
+    )
+
+    assert result.success is False
+    assert result.status_code == 500
+    assert "upstream model crashed" in result.error
+
+
+def test_openai_adapter_streaming_skips_malformed_chunks():
+    body = (
+        'data: {"choices":[{"delta":{"content":"a"}}]}\n\n'
+        "data: {not valid json}\n\n"
+        'data: {"choices":[{"delta":{"content":"b"}}]}\n\n'
+        "data: [DONE]\n\n"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text=body,
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    adapter = OpenAICompatibleAdapter()
+
+    result = adapter.benchmark(
+        client=client,
+        base_url="http://localhost:8000/v1",
+        model="test-model",
+        prompt="hello",
+        max_tokens=32,
+        stream=True,
+        timeout=10.0,
+    )
+
+    assert result.success is True
+    assert result.output_text == "ab"
+
+
 def test_bench_command_supports_json_output(monkeypatch):
     def fake_benchmark(**_: object):
         from llm_bench_cli.models import BenchmarkResult
@@ -93,7 +219,9 @@ def test_bench_command_supports_json_output(monkeypatch):
             total_tokens=12,
         )
 
-    monkeypatch.setattr(OpenAICompatibleAdapter, "benchmark", staticmethod(fake_benchmark))
+    monkeypatch.setattr(
+        OpenAICompatibleAdapter, "benchmark", staticmethod(fake_benchmark)
+    )
 
     runner = CliRunner()
     result = runner.invoke(
