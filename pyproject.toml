@@ -14,7 +14,7 @@ authors = [
 ]
 dependencies = [
   "click>=8.1.0",
-  "httpx>=0.25.0",
+  "httpx>=0.28.1",
   "rich>=13.0.0"
 ]
 
