@@ -13,7 +13,7 @@ authors = [
   { name = "Mukunda Rao Katta" }
 ]
 dependencies = [
-  "click>=8.1.0",
+  "click>=8.5.0",
   "httpx>=0.25.0",
   "rich>=13.0.0"
 ]
